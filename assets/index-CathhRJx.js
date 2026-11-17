@@ -5272,20 +5272,20 @@ void main() {
       <metadata key="name" value="${e.name}"/>
       <metadata key="extruder" value="${r}"/>${i}
     </part>`}).join(`
-`)}function TJ(e,t){let n=[{name:`Terrain_${t.label}`,role:`terrain`,positions:t.positions,indices:t.indices}];t.waterModifierPositions&&t.waterModifierIndices&&t.waterModifierIndices.length>0&&n.push({name:`Water_Ironing_Zone_${t.label}`,role:`water`,positions:t.waterModifierPositions,indices:t.waterModifierIndices}),t.roadModifierPositions&&t.roadModifierIndices&&t.roadModifierIndices.length>0&&n.push({name:`Road_Zone_${t.label}`,role:`road`,positions:t.roadModifierPositions,indices:t.roadModifierIndices}),t.forestModifierPositions&&t.forestModifierIndices&&t.forestModifierIndices.length>0&&n.push({name:`Forest_Hilbert_Zone_${t.label}`,role:`forest`,positions:t.forestModifierPositions,indices:t.forestModifierIndices}),t.alpineModifierPositions&&t.alpineModifierIndices&&t.alpineModifierIndices.length>0&&n.push({name:`Alpine_Fuzzy_Zone_${t.label}`,role:`alpine`,positions:t.alpineModifierPositions,indices:t.alpineModifierIndices});let r=[],i=[],a=[],o=0;for(let t of n){let n=t.positions.length/3,s=t.indices.length/3,c=[];for(let e=0;e<t.positions.length;e+=3)c.push(`<vertex x="${t.positions[e].toFixed(3)}" y="${t.positions[e+1].toFixed(3)}" z="${t.positions[e+2].toFixed(3)}"/>`);r.push(c.join(`
-          `));let l=[];for(let e=0;e<t.indices.length;e+=3)l.push(`<triangle v1="${t.indices[e]+o}" v2="${t.indices[e+1]+o}" v3="${t.indices[e+2]+o}"/>`);i.push(l.join(`
-          `)),a.push({id:e,name:t.name,role:t.role,triCount:s}),o+=n}return{xml:`    <object id="${e}" name="Tile_${t.label}" type="model">
+`)}function TJ(e,t,n=0,r=0){let i=[{name:`Terrain_${t.label}`,role:`terrain`,positions:t.positions,indices:t.indices}];t.waterModifierPositions&&t.waterModifierIndices&&t.waterModifierIndices.length>0&&i.push({name:`Water_Ironing_Zone_${t.label}`,role:`water`,positions:t.waterModifierPositions,indices:t.waterModifierIndices}),t.roadModifierPositions&&t.roadModifierIndices&&t.roadModifierIndices.length>0&&i.push({name:`Road_Zone_${t.label}`,role:`road`,positions:t.roadModifierPositions,indices:t.roadModifierIndices}),t.forestModifierPositions&&t.forestModifierIndices&&t.forestModifierIndices.length>0&&i.push({name:`Forest_Hilbert_Zone_${t.label}`,role:`forest`,positions:t.forestModifierPositions,indices:t.forestModifierIndices}),t.alpineModifierPositions&&t.alpineModifierIndices&&t.alpineModifierIndices.length>0&&i.push({name:`Alpine_Fuzzy_Zone_${t.label}`,role:`alpine`,positions:t.alpineModifierPositions,indices:t.alpineModifierIndices});let a=[],o=[],s=[],c=0;for(let t of i){let i=t.positions.length/3,l=t.indices.length/3,u=[];for(let e=0;e<t.positions.length;e+=3)u.push(`<vertex x="${(t.positions[e]+n).toFixed(3)}" y="${(t.positions[e+1]+r).toFixed(3)}" z="${t.positions[e+2].toFixed(3)}"/>`);a.push(u.join(`
+          `));let d=[];for(let e=0;e<t.indices.length;e+=3)d.push(`<triangle v1="${t.indices[e]+c}" v2="${t.indices[e+1]+c}" v3="${t.indices[e+2]+c}"/>`);o.push(d.join(`
+          `)),s.push({id:e,name:t.name,role:t.role,triCount:l}),c+=i}return{xml:`    <object id="${e}" name="Tile_${t.label}" type="model">
       <mesh>
         <vertices>
-          ${r.join(`
+          ${a.join(`
           `)}
         </vertices>
         <triangles>
-          ${i.join(`
+          ${o.join(`
           `)}
         </triangles>
       </mesh>
-    </object>`,parts:a}}function EJ(e,t){let n=0;return e.map(e=>{let r=n,i=n+Math.max(1,e.triCount)-1;n+=e.triCount;let a=e.role===`terrain`||!t?`ModelPart`:`ParameterModifier`,o=CJ[e.role],s=``;return e.role===`water`?s=`
+    </object>`,parts:s}}function EJ(e,t){let n=0;return e.map(e=>{let r=n,i=n+Math.max(1,e.triCount)-1;n+=e.triCount;let a=e.role===`terrain`||!t?`ModelPart`:`ParameterModifier`,o=CJ[e.role],s=``;return e.role===`water`?s=`
       <metadata type="volume" key="ironing" value="1"/>
       <metadata type="volume" key="ironing_type" value="top"/>
       <metadata type="volume" key="ironing_flowrate" value="15%"/>
@@ -5363,7 +5363,7 @@ ${s}
 </Types>`),n.file(`_rels/.rels`,`<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
-</Relationships>`);let r=[],i=[],a=[],o=[],s=[],c=t===`3mf-both`,l=t===`3mf-both`||t===`3mf-orca`;e.items.forEach((e,t)=>{let n=e.mesh,u=t*10+1,d=u+9;if(c){let t=TJ(d,n);r.push(t.xml),a.push(`    <item objectid="${d}" transform="1 0 0 0 1 0 0 0 1 ${e.txMm.toFixed(3)} ${e.tyMm.toFixed(3)} 0"/>`);let i=EJ(t.parts,!0);s.push(`  <object id="${d}" instances_count="1">
+</Relationships>`);let r=[],i=[],a=[],o=[],s=[],c=t===`3mf-both`,l=t===`3mf-both`||t===`3mf-orca`;e.items.forEach((e,t)=>{let n=e.mesh,u=t*10+1,d=u+9;if(c){let t=TJ(d,n,e.txMm,e.tyMm);r.push(t.xml),a.push(`    <item objectid="${d}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`);let i=EJ(t.parts,!0);s.push(`  <object id="${d}" instances_count="1">
     <metadata type="object" key="name" value="Tile_${n.label}"/>
 ${i}
   </object>`)}else{let t=[{id:u,name:`Terrain_${n.label}`,role:`terrain`,triCount:n.indices.length/3}];r.push(xJ(u,`Terrain_${n.label}`,n.positions,n.indices)),SJ(n,u,t,r);let s=t.map(e=>`<component objectid="${e.id}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join(`
