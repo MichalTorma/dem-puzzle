@@ -25,12 +25,28 @@ export function loadPersistedSettings(defaults: PersistedSettings): PersistedSet
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+    const parsedConfig = (parsed.config ?? {}) as Omit<
+      Partial<PuzzleConfig>,
+      'waterMode' | 'roadMode' | 'previewMode'
+    > & {
+      waterMode?: string;
+      roadMode?: string;
+      previewMode?: string;
+    };
     return {
       ...defaults,
       ...parsed,
       config: {
         ...defaults.config,
-        ...(parsed.config ?? {}),
+        ...parsedConfig,
+        waterMode: parsedConfig.waterMode === 'none' ? 'none' : 'color',
+        roadMode: parsedConfig.roadMode === 'none' ? 'none' : 'color',
+        previewMode:
+          parsedConfig.previewMode === 'clay'
+            ? 'clay'
+            : parsedConfig.previewMode === 'ironing' || parsedConfig.previewMode === 'single'
+              ? 'single'
+              : 'multicolor',
       },
     };
   } catch {

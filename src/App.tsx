@@ -67,9 +67,9 @@ const DEFAULT_CONFIG: PuzzleConfig = {
   tabSizeRatio: 0.22,
   perimeterFlatEdges: true,
   resolution: 96,
-  waterMode: 'recessed',
+  waterMode: 'color',
   forestTexture: true,
-  roadMode: 'raised',
+  roadMode: 'color',
   contourSteps: 0,
   elevationBands: true,
   undersideLabel: true,
@@ -343,8 +343,8 @@ const EMPTY_SELECTED_SET = new Set<string>();
       stage: 'meshing',
       overallPct: 50,
       completed: 0,
-      total: 6,
-      detail: 'Building 3 calibration pairs (0.12 / 0.20 / 0.28 mm clearance + ironing pad)...',
+      total: 2,
+      detail: 'Building 2-tile hex calibration set (0.08–0.28 mm clearances + extreme interlock)...',
       logs: [],
     });
     try {
@@ -492,7 +492,7 @@ const EMPTY_SELECTED_SET = new Set<string>();
             className="chip-btn"
             disabled={progress !== null}
             onClick={handleGenerateCalibration}
-            title="Generate 3 small interlocking test pairs (0.12 / 0.20 / 0.28 mm) + ironing pad to dial in your printer"
+            title="Generate 2 interlocking hex test tiles (6 clearances: 0.08–0.28 mm, extreme interlock + surface modifiers)"
           >
             <Printer size={14} />
             Test Print
@@ -783,8 +783,7 @@ const EMPTY_SELECTED_SET = new Set<string>();
                   value={config.waterMode}
                   onChange={(e) => updateConfig('waterMode', e.target.value as PuzzleConfig['waterMode'])}
                 >
-                  <option value="recessed">Recessed + Iron</option>
-                  <option value="flat">Flush + Iron</option>
+                  <option value="color">Multi-Color</option>
                   <option value="none">Off</option>
                 </select>
               </label>
@@ -795,8 +794,7 @@ const EMPTY_SELECTED_SET = new Set<string>();
                   value={config.roadMode}
                   onChange={(e) => updateConfig('roadMode', e.target.value as PuzzleConfig['roadMode'])}
                 >
-                  <option value="raised">Raised (+0.5mm)</option>
-                  <option value="engraved">Engraved (-0.4mm)</option>
+                  <option value="color">Multi-Color</option>
                   <option value="none">Off</option>
                 </select>
               </label>
@@ -900,10 +898,10 @@ const EMPTY_SELECTED_SET = new Set<string>();
                   </button>
                   <button
                     type="button"
-                    className={config.previewMode === 'ironing' ? 'active' : ''}
-                    onClick={() => updateConfig('previewMode', 'ironing')}
+                    className={config.previewMode === 'single' ? 'active' : ''}
+                    onClick={() => updateConfig('previewMode', 'single')}
                   >
-                    Single-Color + Ironing
+                    Single-Color
                   </button>
                   <button
                     type="button"
@@ -914,7 +912,7 @@ const EMPTY_SELECTED_SET = new Set<string>();
                   </button>
                 </div>
 
-                {config.previewMode === 'ironing' && (
+                {config.previewMode === 'single' && (
                   <div className="filament-swatches" aria-label="Single-color filament">
                     {[
                       { name: 'Slate PLA', hex: '#64748b' },

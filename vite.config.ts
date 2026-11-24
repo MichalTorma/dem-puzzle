@@ -19,7 +19,7 @@ export default defineConfig(({ command }) => ({
         name: 'TopoJigsaw — 3D Terrain Puzzle Studio',
         short_name: 'TopoJigsaw',
         description:
-          'Turn any place on Earth into interlocking 3D-printable hexagonal or rectangular terrain puzzle tiles with multi-color 3MF and selective ironing.',
+          'Turn any place on Earth into interlocking 3D-printable hexagonal or rectangular terrain puzzle tiles with multi-color 3MF export.',
         theme_color: '#0b0f17',
         background_color: '#0b0f17',
         display: 'standalone',

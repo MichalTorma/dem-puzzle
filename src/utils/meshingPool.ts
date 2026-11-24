@@ -302,26 +302,24 @@ export async function generatePuzzleMeshes(params: {
 }
 
 /**
- * Generates a fast 6-tile (3 interlocking pairs) calibration set testing
- * 0.12 mm (tight), 0.20 mm (standard), and 0.28 mm (loose) jigsaw clearances
- * while showcasing every surface texture & slicer modifier:
- *  - Pair 1 (0.12 mm): Glass-ironed water pad + concentric road strip + valley contours
- *  - Pair 2 (0.20 mm): Organic forest canopy domes (Hilbert top-fill) + smooth valley
- *  - Pair 3 (0.28 mm): Alpine rock strata + snow sastrugi (Fuzzy skin modifier)
+ * Generates a 2-tile hexagonal calibration set where every tab of CAL_TABS
+ * fits every slot of CAL_SLOTS in all 36 combinations, using an extreme
+ * high-undercut interlock to stress-test 6 jigsaw clearances in one print:
+ *  - CAL_TABS: 6 nominal tabs (0.00 mm inset) + water zone, road, & forest canopy
+ *  - CAL_SLOTS: 6 slots with 0.08 / 0.12 / 0.16 / 0.20 / 0.24 / 0.28 mm clearance
+ *    (debossed on the underside as 08, 12, 16, 20, 24, 28) + alpine ridge & snow peak
  */
 export async function generateCalibrationMeshes(config: PuzzleConfig): Promise<GeneratedTileMesh[]> {
-  const clearances = [
-    { code: '012', mm: 0.12, mode: 'water_road' as const },
-    { code: '020', mm: 0.2, mode: 'forest_valley' as const },
-    { code: '028', mm: 0.28, mode: 'alpine_peak' as const },
-  ];
-  const testSizeMm = Math.min(28, Math.max(22, config.tilePrintSizeMm));
-  const halfSpanMm = testSizeMm * (0.52 + config.tabSizeRatio * 1.15);
-  const demSize = 80;
-  const nEdges = config.shape === 'hex' ? 6 : 4;
+  const slotClearancesMm = [0.08, 0.12, 0.16, 0.2, 0.24, 0.28];
+  const slotEdgeLabels = ['08', '12', '16', '20', '24', '28'];
+  const testSizeMm = Math.min(34, Math.max(28, config.tilePrintSizeMm));
+  const tabSizeRatio = Math.max(config.tabSizeRatio, 0.28);
+  const halfSpanMm = testSizeMm * (0.55 + tabSizeRatio * 1.15);
+  const demSize = 84;
+  const nEdges = 6;
   const requests: MeshTileRequest[] = [];
 
-  const makeSyntheticFields = (mode: 'water_road' | 'forest_valley' | 'alpine_peak') => {
+  const makeSyntheticFields = (mode: 'tabs_surface' | 'slots_alpine') => {
     const elevations = new Float32Array(demSize * demSize);
     const water = new Float32Array(demSize * demSize);
     const forest = new Float32Array(demSize * demSize);
@@ -334,80 +332,79 @@ export async function generateCalibrationMeshes(config: PuzzleConfig): Promise<G
         const nx = c / (demSize - 1);
         const idx = r * demSize + c;
 
-        if (mode === 'water_road') {
-          // Flat water pad in lower-left quadrant (for ironing check), gentle valley ramp + road
-          if (nx < 0.45 && ny < 0.45) {
+        if (mode === 'tabs_surface') {
+          // Lower-left water zone, mid-upper road strip, & upper-right forest canopy
+          if (nx < 0.44 && ny < 0.44) {
             elevations[idx] = 100;
             water[idx] = 1;
           } else {
-            elevations[idx] = 115 + (nx * 0.55 + ny * 0.45) * 60;
-            if (Math.abs(ny - 0.65) < 0.055) road[idx] = 1;
+            const hill = Math.sin(nx * Math.PI) * Math.sin(ny * Math.PI) * 28;
+            elevations[idx] = 112 + (nx * 0.45 + ny * 0.55) * 48 + hill;
+            if (Math.abs(ny - 0.62) < 0.05) road[idx] = 1;
+            forest[idx] = Math.max(0, Math.min(1, (nx + ny - 0.92) * 3.2));
           }
-        } else if (mode === 'forest_valley') {
-          // Rolling valley with dense forest canopy on upper/right half & contour meadow on lower/left
-          const hill = Math.sin(nx * Math.PI) * Math.sin(ny * Math.PI) * 38;
-          elevations[idx] = 110 + (nx * 0.4 + ny * 0.6) * 45 + hill;
-          const forestMask = Math.max(0, Math.min(1, (nx + ny - 0.82) * 3.2));
-          forest[idx] = forestMask;
         } else {
-          // Steep alpine ridge spanning rock strata (0.52..0.78) and snow peak (>0.78)
-          const ridge = Math.exp(-((nx - 0.52) ** 2 / 0.14 + (ny - 0.52) ** 2 / 0.18));
-          elevations[idx] = 135 + ridge * 125;
+          // Steep alpine ridge spanning rock strata and snow peak
+          const ridge = Math.exp(-((nx - 0.5) ** 2 / 0.13 + (ny - 0.5) ** 2 / 0.16));
+          elevations[idx] = 130 + ridge * 130;
         }
       }
     }
     return { elevations, masks: { size: demSize, water, forest, road, building } };
   };
 
-  clearances.forEach((entry, pairIdx) => {
-    const rowY = (pairIdx - 1) * testSizeMm * 1.15;
-    const pairConfigs: Array<{ role: 'TAB' | 'SLOT'; xOffset: number; edgeType: 'tab' | 'blank' }> = [
-      { role: 'TAB', xOffset: -testSizeMm * 0.65, edgeType: 'tab' },
-      { role: 'SLOT', xOffset: testSizeMm * 0.65, edgeType: 'blank' },
-    ];
+  const edgeSeeds = Array.from({ length: nEdges }, () => ({
+    uShift: 0,
+    skew: 0,
+    sizeScale: 1,
+    extremeInterlock: true,
+  }));
 
-    for (const p of pairConfigs) {
-      const { elevations, masks } = makeSyntheticFields(entry.mode);
-      const edgeTypes = Array.from({ length: nEdges }, (_, i) => {
-        if (config.shape === 'hex') {
-          return (p.role === 'TAB' && i === 5) || (p.role === 'SLOT' && i === 2)
-            ? p.edgeType
-            : 'flat';
-        }
-        return (p.role === 'TAB' && i === 1) || (p.role === 'SLOT' && i === 3)
-          ? p.edgeType
-          : 'flat';
-      });
-      const edgeSeeds = Array.from({ length: nEdges }, () => ({
-        uShift: 0,
-        skew: 0,
-        sizeScale: 1,
-      }));
-      const tileConfig: PuzzleConfig = {
-        ...config,
-        tilePrintSizeMm: testSizeMm,
-        maxReliefMm: Math.min(Math.max(config.maxReliefMm, 7), 10),
-        resolution: Math.max(72, Math.min(config.resolution, 88)),
-        jigsawClearanceMm: entry.mm,
-        forestTexture: true,
-        elevationBands: true,
-      };
-      const label = `T${entry.code}_${p.role === 'TAB' ? 'A' : 'B'}`;
-      requests.push({
-        tileId: label,
-        label,
-        centerMmX: p.xOffset,
-        centerMmY: rowY,
-        edgeTypes,
-        edgeSeeds,
-        config: tileConfig,
-        halfSpanMm,
-        elevations,
-        globalMinElevM: 100,
-        globalMaxElevM: 260,
-        masks,
-      });
-    }
+  const tileConfig: PuzzleConfig = {
+    ...config,
+    shape: 'hex',
+    tilePrintSizeMm: testSizeMm,
+    tabSizeRatio,
+    maxReliefMm: Math.min(Math.max(config.maxReliefMm, 8), 11),
+    resolution: Math.max(76, Math.min(config.resolution, 92)),
+    jigsawClearanceMm: 0.2,
+    forestTexture: true,
+    elevationBands: true,
+  };
+
+  const tabsField = makeSyntheticFields('tabs_surface');
+  requests.push({
+    tileId: 'CAL_TABS',
+    label: 'CAL_TABS',
+    centerMmX: -testSizeMm * 0.72,
+    centerMmY: 0,
+    edgeTypes: Array(nEdges).fill('tab'),
+    edgeSeeds,
+    edgeClearancesMm: Array(nEdges).fill(0),
+    config: tileConfig,
+    halfSpanMm,
+    elevations: tabsField.elevations,
+    globalMinElevM: 100,
+    globalMaxElevM: 260,
+    masks: tabsField.masks,
+  });
+
+  const slotsField = makeSyntheticFields('slots_alpine');
+  requests.push({
+    tileId: 'CAL_SLOTS',
+    label: 'CAL_SLOTS',
+    centerMmX: testSizeMm * 0.72,
+    centerMmY: 0,
+    edgeTypes: Array(nEdges).fill('blank'),
+    edgeSeeds,
+    edgeClearancesMm: slotClearancesMm,
+    edgeLabels: slotEdgeLabels,
+    config: tileConfig,
+    halfSpanMm,
+    elevations: slotsField.elevations,
+    globalMinElevM: 100,
+    globalMaxElevM: 260,
+    masks: slotsField.masks,
   });
 
   return runWorkerPool(

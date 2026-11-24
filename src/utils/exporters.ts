@@ -111,7 +111,7 @@ function appendTileModifierParts(
   }> = [
     {
       offset: 1,
-      name: `Water_Ironing_Zone_${mesh.label}`,
+      name: `Water_Zone_${mesh.label}`,
       role: 'water',
       positions: mesh.waterModifierPositions,
       indices: mesh.waterModifierIndices,
@@ -166,16 +166,7 @@ function buildOrcaPartsXml(parts: PartMeta[], useModifier: boolean): string {
       const subtype = c.role === 'terrain' || !useModifier ? 'normal_part' : 'modifier_part';
       const extruder = ROLE_EXTRUDER[c.role];
       let extra = '';
-      if (c.role === 'water') {
-        extra = `
-      <metadata key="ironing_type" value="top"/>
-      <metadata key="ironing_flow" value="12"/>
-      <metadata key="top_surface_pattern" value="monotonic"/>`;
-      } else if (c.role === 'road') {
-        extra = `
-      <metadata key="ironing_type" value="top"/>
-      <metadata key="top_surface_pattern" value="concentric"/>`;
-      } else if (c.role === 'forest') {
+      if (c.role === 'forest') {
         extra = `
       <metadata key="top_surface_pattern" value="hilbertcurve"/>`;
       } else if (c.role === 'alpine') {
@@ -214,7 +205,7 @@ function buildMergedPrusaMeshXml(
   ];
   if (mesh.waterModifierPositions && mesh.waterModifierIndices && mesh.waterModifierIndices.length > 0) {
     subMeshes.push({
-      name: `Water_Ironing_Zone_${mesh.label}`,
+      name: `Water_Zone_${mesh.label}`,
       role: 'water',
       positions: mesh.waterModifierPositions,
       indices: mesh.waterModifierIndices,
@@ -302,23 +293,7 @@ function buildPrusaVolumesXml(parts: PartMeta[], useModifier: boolean): string {
       const volType = c.role === 'terrain' || !useModifier ? 'ModelPart' : 'ParameterModifier';
       const extruder = ROLE_EXTRUDER[c.role];
       let extra = '';
-      if (c.role === 'water') {
-        extra = `
-      <metadata type="volume" key="ironing" value="1"/>
-      <metadata type="volume" key="ironing_type" value="top"/>
-      <metadata type="volume" key="ironing_flowrate" value="15%"/>
-      <metadata type="volume" key="ironing_spacing" value="0.1"/>
-      <metadata type="volume" key="ironing_speed" value="15"/>
-      <metadata type="volume" key="top_fill_pattern" value="monotonic"/>`;
-      } else if (c.role === 'road') {
-        extra = `
-      <metadata type="volume" key="ironing" value="1"/>
-      <metadata type="volume" key="ironing_type" value="top"/>
-      <metadata type="volume" key="ironing_flowrate" value="15%"/>
-      <metadata type="volume" key="ironing_spacing" value="0.1"/>
-      <metadata type="volume" key="ironing_speed" value="15"/>
-      <metadata type="volume" key="top_fill_pattern" value="concentric"/>`;
-      } else if (c.role === 'forest') {
+      if (c.role === 'forest') {
         extra = `
       <metadata type="volume" key="top_fill_pattern" value="hilbertcurve"/>`;
       } else if (c.role === 'alpine') {
@@ -339,7 +314,7 @@ function buildPrusaVolumesXml(parts: PartMeta[], useModifier: boolean): string {
 
 /**
  * Exports a 3MF archive compatible with BOTH OrcaSlicer/Bambu Studio AND PrusaSlicer.
- * Includes multi-part sub-meshes and selective-ironing modifier volumes for water/roads.
+ * Includes multi-part sub-meshes and modifier volumes for multi-color & surface textures.
  */
 export async function exportTileTo3MF(
   mesh: GeneratedTileMesh,

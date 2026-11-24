@@ -8,6 +8,10 @@ export interface MeshTileRequest {
   centerMmY: number;
   edgeTypes: EdgeKind[];
   edgeSeeds: EdgeSeed[];
+  /** Optional per-edge inward inset in mm (overrides config.jigsawClearanceMm * 0.5) */
+  edgeClearancesMm?: number[];
+  /** Optional short labels debossed on the underside next to each edge */
+  edgeLabels?: string[];
   config: PuzzleConfig;
   halfSpanMm: number;
   elevations: Float32Array;
@@ -81,8 +85,8 @@ function sampleJigsawProfile(
   const sizeScale = seed?.sizeScale ?? 1;
 
   const tabDepth = Math.max(1.8, edgeLenMm * tabRatio * sizeScale);
-  const neckHalfU = 0.085 * sizeScale;
-  const bulbHalfU = 0.145 * sizeScale;
+  const neckHalfU = (seed?.extremeInterlock ? 0.068 : 0.085) * sizeScale;
+  const bulbHalfU = (seed?.extremeInterlock ? 0.168 : 0.145) * sizeScale;
   const c = 0.5 + uShift;
 
   // Normalized key points (u along edge, v outward in mm)
@@ -127,11 +131,14 @@ function buildOuterJigsawPolygon(
   edgeTypes: EdgeKind[],
   edgeSeeds: EdgeSeed[],
   tabRatio: number,
-  clearanceMm: number
+  clearanceMm: number,
+  edgeClearancesMm?: number[]
 ): Vec2[] {
   const corners = getBaseCorners(shape, tilePrintSizeMm);
   const edges = getEdgePairIndices(shape);
   const poly: Vec2[] = [];
+  const segInsets: number[] = [];
+  const defaultHalfGap = Math.max(0, clearanceMm * 0.5);
 
   for (const [iA, iB, edgeTypeIdx] of edges) {
     const a = corners[iA];
@@ -153,50 +160,78 @@ function buildOuterJigsawPolygon(
 
     const kind = edgeTypes[edgeTypeIdx] ?? 'flat';
     const seed = edgeSeeds[edgeTypeIdx];
+    const edgeInset = Math.max(0, edgeClearancesMm?.[edgeTypeIdx] ?? defaultHalfGap);
     const profile = sampleJigsawProfile(kind, len, tabRatio, seed);
     for (const p of profile) {
       poly.push({
         x: a.x + dx * p.u + nx * p.v,
         y: a.y + dy * p.u + ny * p.v,
       });
+      segInsets.push(edgeInset);
     }
   }
 
-  // Offset the entire CCW boundary inward by clearanceMm * 0.5 along its 2D normal
+  // Offset the entire CCW boundary inward by each segment's inset along its 2D normal
   // so straight edges, necks, bulbs, and tips all have uniform clearance without interference.
-  const halfGap = Math.max(0, clearanceMm * 0.5);
-  if (halfGap <= 0 || poly.length < 3) return poly;
+  const hasAnyGap = segInsets.some((g) => g > 0);
+  if (!hasAnyGap || poly.length < 3) return poly;
 
   const n = poly.length;
   const insetPoly: Vec2[] = new Array(n);
   for (let i = 0; i < n; i++) {
-    const prev = poly[(i - 1 + n) % n];
+    const prevIdx = (i - 1 + n) % n;
+    const prev = poly[prevIdx];
     const curr = poly[i];
     const next = poly[(i + 1) % n];
+
+    const d1 = segInsets[prevIdx];
+    const d2 = segInsets[i];
 
     const e1x = curr.x - prev.x;
     const e1y = curr.y - prev.y;
     const l1 = Math.hypot(e1x, e1y) || 1;
-    const n1x = -e1y / l1;
-    const n1y = e1x / l1;
+    const t1x = e1x / l1;
+    const t1y = e1y / l1;
+    const n1x = -t1y;
+    const n1y = t1x;
 
     const e2x = next.x - curr.x;
     const e2y = next.y - curr.y;
     const l2 = Math.hypot(e2x, e2y) || 1;
-    const n2x = -e2y / l2;
-    const n2y = e2x / l2;
+    const t2x = e2x / l2;
+    const t2y = e2y / l2;
+    const n2x = -t2y;
+    const n2y = t2x;
 
-    const mx = n1x + n2x;
-    const my = n1y + n2y;
-    const mLen = Math.hypot(mx, my);
-    if (mLen < 1e-6) {
-      insetPoly[i] = { x: curr.x + n1x * halfGap, y: curr.y + n1y * halfGap };
+    if (Math.abs(d1 - d2) < 1e-6) {
+      const mx = n1x + n2x;
+      const my = n1y + n2y;
+      const mLen = Math.hypot(mx, my);
+      if (mLen < 1e-6) {
+        insetPoly[i] = { x: curr.x + n1x * d1, y: curr.y + n1y * d1 };
+      } else {
+        const ux = mx / mLen;
+        const uy = my / mLen;
+        const dot = Math.max(0.5, ux * n1x + uy * n1y);
+        const dist = d1 / dot;
+        insetPoly[i] = { x: curr.x + ux * dist, y: curr.y + uy * dist };
+      }
     } else {
-      const ux = mx / mLen;
-      const uy = my / mLen;
-      const dot = Math.max(0.5, ux * n1x + uy * n1y);
-      const dist = halfGap / dot;
-      insetPoly[i] = { x: curr.x + ux * dist, y: curr.y + uy * dist };
+      // Exact intersection of two offset lines with different per-edge clearances
+      const p1x = curr.x + n1x * d1;
+      const p1y = curr.y + n1y * d1;
+      const p2x = curr.x + n2x * d2;
+      const p2y = curr.y + n2y * d2;
+      const denom = t1x * t2y - t1y * t2x;
+      if (Math.abs(denom) > 1e-4) {
+        const u = ((p2x - p1x) * t2y - (p2y - p1y) * t2x) / denom;
+        const maxMiter = Math.max(d1, d2) * 2.5;
+        const clampedU = Math.max(-maxMiter, Math.min(maxMiter, u));
+        insetPoly[i] = { x: p1x + clampedU * t1x, y: p1y + clampedU * t1y };
+      } else {
+        const avgD = 0.5 * (d1 + d2);
+        insetPoly[i] = { x: curr.x + n1x * avgD, y: curr.y + n1y * avgD };
+      }
     }
   }
 
@@ -366,14 +401,9 @@ function evalSurface(
   const wx = req.centerMmX + xMm;
   const wy = req.centerMmY + yMm;
 
-  // Water treatment (kept flat so slicer top-ironing produces a mirror finish)
+  // Water zones: keep pure terrain relief (distinct color in multi-color 3MF/preview, no depression or ironing)
   if (water > 0.45 && config.waterMode !== 'none') {
     zone = 1;
-    if (config.waterMode === 'recessed') {
-      z = Math.max(config.baseThicknessMm * 0.72, z - 0.55);
-    } else {
-      z = Math.max(config.baseThicknessMm * 0.85, z);
-    }
   } else {
     // Forest canopy micro-texture: rounded organic crown clusters feathered at edges
     if (forest > 0.35) {
@@ -392,10 +422,9 @@ function evalSurface(
       z += 1.1;
     }
 
-    // Scale-filtered roads (kept crisp & flat on top for concentric ironing)
+    // Scale-filtered roads: keep pure terrain relief (distinct color in multi-color 3MF/preview, no depression/raising or ironing)
     if (road > 0.45 && config.roadMode !== 'none') {
       zone = 3;
-      z += config.roadMode === 'raised' ? 0.55 : -0.45;
     }
 
     // Alpine rock strata & snow-drift sastrugi (zone 4 -> fuzzy skin + archimedean top-fill)
@@ -698,6 +727,92 @@ function buildCompassRoseHoles(northAngleRad: number, radiusMm: number): Vec2[][
   return holes;
 }
 
+/**
+ * 7-segment bitmask for digits 0-9 (bits: a=0 top, b=1 top-right, c=2 bot-right,
+ * d=3 bot, e=4 bot-left, f=5 top-left, g=6 mid).
+ */
+const SEG7_DIGITS: Record<string, number> = {
+  '0': 0b0111111,
+  '1': 0b0000110,
+  '2': 0b1011011,
+  '3': 0b1001111,
+  '4': 0b1100110,
+  '5': 0b1101101,
+  '6': 0b1111101,
+  '7': 0b0000111,
+  '8': 0b1111111,
+  '9': 0b1101111,
+};
+
+/**
+ * Generates non-overlapping CCW 7-segment rectangle holes for short edge labels
+ * debossed into the bottom face of a hex calibration tile, oriented so each label
+ * reads forwards from underneath when that edge is held at the top.
+ */
+function buildDebossedEdgeLabels(edgeLabels: string[], tileSizeMm: number): Vec2[][] {
+  const holes: Vec2[][] = [];
+  const labelRadius = tileSizeMm * 0.21;
+  const digitW = 1.65;
+  const digitH = 2.8;
+  const stroke = 0.46;
+  const gap = 0.08;
+  const charAdvance = digitW + 0.65;
+  const halfH = digitH * 0.5;
+  const halfStroke = stroke * 0.5;
+
+  const segRects: Array<[number, number, number, number]> = [
+    [stroke + gap, digitH - stroke, digitW - stroke - gap, digitH], // a (top)
+    [digitW - stroke, halfH + halfStroke + gap, digitW, digitH - gap], // b (top-right)
+    [digitW - stroke, gap, digitW, halfH - halfStroke - gap], // c (bot-right)
+    [stroke + gap, 0, digitW - stroke - gap, stroke], // d (bot)
+    [0, gap, stroke, halfH - halfStroke - gap], // e (bot-left)
+    [0, halfH + halfStroke + gap, stroke, digitH - gap], // f (top-left)
+    [stroke + gap, halfH - halfStroke, digitW - stroke - gap, halfH + halfStroke], // g (mid)
+  ];
+
+  for (let edgeIdx = 0; edgeIdx < edgeLabels.length && edgeIdx < 6; edgeIdx++) {
+    const text = edgeLabels[edgeIdx];
+    if (!text) continue;
+
+    // Outward normal angle of hex edge `edgeIdx` (corners at 30 + i*60 deg)
+    const midAng = ((60 + edgeIdx * 60) * Math.PI) / 180;
+    const ux = Math.cos(midAng);
+    const uy = Math.sin(midAng);
+    const tx = -uy;
+    const ty = ux;
+    const cx = ux * labelRadius;
+    const cy = uy * labelRadius;
+
+    const totalW = text.length * digitW + (text.length - 1) * (charAdvance - digitW);
+    const startX = -totalW * 0.5;
+    const startY = -digitH * 0.5;
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const mask = SEG7_DIGITS[text[ci]];
+      if (!mask) continue;
+      const ox = startX + ci * charAdvance;
+
+      for (let s = 0; s < 7; s++) {
+        if ((mask & (1 << s)) === 0) continue;
+        const [x0, y0, x1, y1] = segRects[s];
+        const lx0 = ox + x0;
+        const lx1 = ox + x1;
+        const ly0 = startY + y0;
+        const ly1 = startY + y1;
+        // CCW in top-down XY because det([tx,ty],[ux,uy]) = -1
+        holes.push([
+          { x: cx + lx0 * tx + ly0 * ux, y: cy + lx0 * ty + ly0 * uy },
+          { x: cx + lx0 * tx + ly1 * ux, y: cy + lx0 * ty + ly1 * uy },
+          { x: cx + lx1 * tx + ly1 * ux, y: cy + lx1 * ty + ly1 * uy },
+          { x: cx + lx1 * tx + ly0 * ux, y: cy + lx1 * ty + ly0 * uy },
+        ]);
+      }
+    }
+  }
+
+  return holes;
+}
+
 function buildTileMesh(req: MeshTileRequest): GeneratedTileMesh {
   const t0 = performance.now();
   const { config, edgeTypes, edgeSeeds, halfSpanMm } = req;
@@ -713,7 +828,8 @@ function buildTileMesh(req: MeshTileRequest): GeneratedTileMesh {
     edgeTypes,
     edgeSeeds,
     config.tabSizeRatio,
-    config.jigsawClearanceMm
+    config.jigsawClearanceMm,
+    req.edgeClearancesMm
   );
 
   const { insideCells, innerLoops } = buildInnerGridRegion(rawOuterPoly, gridN, halfSpanMm);
@@ -985,9 +1101,10 @@ function buildTileMesh(req: MeshTileRequest): GeneratedTileMesh {
   }
 
   // 5. Bottom cap (z = 0, reversed winding so normal points -Z)
-  // On the center tile (E0N0) and middle calibration tile (T020_A), deboss an
+  // On the center tile (E0N0) and calibration tab tile (CAL_TABS), deboss an
   // old-school nautical compass rose upward into the base (zero-support print).
-  const hasCompassRose = req.label === 'E0N0' || req.label === 'T020_A';
+  const hasCompassRose = req.label === 'E0N0' || req.label === 'CAL_TABS';
+  const hasEdgeLabels = Boolean(req.edgeLabels && req.edgeLabels.length > 0);
   const botCoords: number[] = [];
   const botVertMap: number[] = [];
   const botChainMap = new Map<string, number[]>();
@@ -1007,13 +1124,19 @@ function buildTileMesh(req: MeshTileRequest): GeneratedTileMesh {
   }
 
   const botHoleIndices: number[] = [];
-  if (hasCompassRose) {
-    const roseRadius = Math.min(8.2, config.tilePrintSizeMm * 0.25);
-    const northRad = (config.gridRotationDeg * Math.PI) / 180;
+  if (hasCompassRose || hasEdgeLabels) {
     const debossDepth = Math.min(0.45, config.baseThicknessMm * 0.28);
-    const rosePolys = buildCompassRoseHoles(northRad, roseRadius);
+    const holePolys: Vec2[][] = [];
+    if (hasCompassRose) {
+      const roseRadius = Math.min(8.2, config.tilePrintSizeMm * 0.25);
+      const northRad = (config.gridRotationDeg * Math.PI) / 180;
+      holePolys.push(...buildCompassRoseHoles(northRad, roseRadius));
+    }
+    if (hasEdgeLabels && req.edgeLabels) {
+      holePolys.push(...buildDebossedEdgeLabels(req.edgeLabels, config.tilePrintSizeMm));
+    }
 
-    for (const polyCCW of rosePolys) {
+    for (const polyCCW of holePolys) {
       // Bottom rim vertices at z = 0 (CW for earcut hole)
       const polyCW = [...polyCCW].reverse();
       const holeBotVerts: number[] = [];
@@ -1145,7 +1268,7 @@ function buildTileMesh(req: MeshTileRequest): GeneratedTileMesh {
   const alpineModIdx: number[] = [];
 
   if (config.exportFormat !== 'stl') {
-    postProgress(req.tileId, req.label, 'Building 3MF ironing & texture modifiers', 0.8);
+    postProgress(req.tileId, req.label, 'Building 3MF color & texture modifiers', 0.8);
     const buildClosedModifierSlab = (
       targetZone: number,
       outPos: number[],

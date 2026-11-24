@@ -8,12 +8,14 @@ export interface EdgeSeed {
   skew: number;
   /** Scale multiplier for tab depth & width (0.86..1.14), identical on both neighbors */
   sizeScale: number;
+  /** Narrower neck & wider bulb for high-sensitivity clearance calibration */
+  extremeInterlock?: boolean;
 }
 export type ScaleTier = 'urban' | 'town' | 'regional' | 'continental';
-export type WaterMode = 'recessed' | 'flat' | 'none';
-export type RoadMode = 'raised' | 'engraved' | 'none';
+export type WaterMode = 'color' | 'none';
+export type RoadMode = 'color' | 'none';
 export type ExportFormat = '3mf-both' | '3mf-orca' | '3mf-multipart' | 'stl';
-export type PreviewMode = 'multicolor' | 'ironing' | 'clay';
+export type PreviewMode = 'multicolor' | 'single' | 'clay';
 
 export interface ScaleProfile {
   tier: ScaleTier;
@@ -96,7 +98,7 @@ export interface GeneratedTileMesh {
   /** Zone tag per triangle (0=terrain, 1=water, 2=forest, 3=road, 4=alpine) */
   triangleZones: Uint8Array;
   indices: Uint32Array;
-  /** Optional separate water/ironing modifier mesh for 3MF */
+  /** Optional separate water modifier mesh for 3MF */
   waterModifierPositions?: Float32Array;
   waterModifierIndices?: Uint32Array;
   /** Optional road modifier mesh for 3MF */

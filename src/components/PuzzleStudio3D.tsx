@@ -190,7 +190,6 @@ export function PuzzleStudio3D({
     avgX /= meshes.length;
     avgY /= meshes.length;
 
-    const isIroning = previewMode === 'ironing';
     const isClay = previewMode === 'clay';
     const isMulti = previewMode === 'multicolor';
 
@@ -198,29 +197,18 @@ export function PuzzleStudio3D({
     const sharedBaseMat = new THREE.MeshStandardMaterial({
       vertexColors: isMulti,
       color: isMulti ? '#ffffff' : isClay ? '#e5e0d8' : singleFilamentColor,
-      roughness: isIroning ? 0.94 : isClay ? 0.86 : 0.68,
-      metalness: isIroning ? 0.02 : 0.04,
+      roughness: isClay ? 0.86 : 0.68,
+      metalness: 0.04,
     });
 
     const sharedActiveMat = new THREE.MeshStandardMaterial({
       vertexColors: isMulti,
       color: isMulti ? '#ffffff' : isClay ? '#e5e0d8' : singleFilamentColor,
-      roughness: isIroning ? 0.94 : isClay ? 0.86 : 0.68,
-      metalness: isIroning ? 0.02 : 0.04,
+      roughness: isClay ? 0.86 : 0.68,
+      metalness: 0.04,
       emissive: new THREE.Color('#0ea5e9'),
       emissiveIntensity: 0.14,
     });
-
-    const sharedIronedMat = isIroning
-      ? new THREE.MeshPhysicalMaterial({
-          color: singleFilamentColor,
-          roughness: 0.05,
-          metalness: 0.08,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.04,
-          reflectivity: 0.95,
-        })
-      : null;
 
     for (const m of meshes) {
       const tileGroup = new THREE.Group();
@@ -240,24 +228,6 @@ export function PuzzleStudio3D({
       meshObj.receiveShadow = true;
       meshObj.userData = { tileId: m.tileId };
       tileGroup.add(meshObj);
-
-      // In single-color selective ironing preview, render ironed water & road zones as glossy clearcoated same-filament surfaces
-      if (sharedIronedMat) {
-        const addIronedZone = (pos?: Float32Array, idx?: Uint32Array) => {
-          if (!pos || !idx || idx.length === 0) return;
-          const zGeom = new THREE.BufferGeometry();
-          zGeom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-          zGeom.setIndex(new THREE.BufferAttribute(idx, 1));
-          zGeom.computeVertexNormals();
-          const zMesh = new THREE.Mesh(zGeom, sharedIronedMat);
-          zMesh.receiveShadow = true;
-          zMesh.userData = { tileId: m.tileId };
-          tileGroup.add(zMesh);
-        };
-
-        addIronedZone(m.waterModifierPositions, m.waterModifierIndices);
-        addIronedZone(m.roadModifierPositions, m.roadModifierIndices);
-      }
 
       puzzleGroup.add(tileGroup);
       tileGroupsRef.current.set(m.tileId, { group: tileGroup, baseX, baseY });
