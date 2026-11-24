@@ -423,7 +423,7 @@ function evalSurface(
     }
 
     // Scale-filtered roads: keep pure terrain relief (distinct color in multi-color 3MF/preview, no depression/raising or ironing)
-    if (road > 0.45 && config.roadMode !== 'none') {
+    if (road > 0.32 && config.roadMode !== 'none') {
       zone = 3;
     }
 

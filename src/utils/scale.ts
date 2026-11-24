@@ -30,15 +30,15 @@ export function computeScaleProfile(
   } else if (metersPerMm <= 100) {
     tier = 'town';
     label = 'Town & Valley';
-    includedRoads = ['motorway', 'trunk', 'primary', 'secondary'];
+    includedRoads = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary'];
     includeBuildings = false;
-    summary = 'Major roads, rivers, lakes & forests; minor streets filtered out.';
+    summary = 'Major & connecting roads, rivers, lakes & forests; minor streets filtered out.';
   } else if (metersPerMm <= 400) {
     tier = 'regional';
     label = 'Regional / Range';
-    includedRoads = ['motorway', 'trunk', 'primary'];
+    includedRoads = ['motorway', 'trunk', 'primary', 'secondary'];
     includeBuildings = false;
-    summary = 'Highways, large lakes, forests & mountain relief; urban clutter hidden.';
+    summary = 'Highways, main valley roads, large lakes, forests & mountain relief.';
   } else {
     tier = 'continental';
     label = 'Macro / Continental';

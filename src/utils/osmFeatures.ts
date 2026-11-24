@@ -309,7 +309,7 @@ export function rasterizeTileFeatureMasks(params: {
     } else if (el.kind === 'forest' && profile.includeForests) {
       for (const r of el.rings) drawPath(fCtx, r, true);
     } else if (el.kind === 'road' && el.roadClass && allowedRoadSet.has(el.roadClass)) {
-      const wMul = el.roadClass === 'motorway' || el.roadClass === 'trunk' ? 1.45 : 1.0;
+      const wMul = el.roadClass === 'motorway' || el.roadClass === 'trunk' ? 1.75 : 1.35;
       for (const r of el.rings) drawPath(rCtx, r, false, minNozzlePx * wMul);
     } else if (el.kind === 'building' && profile.includeBuildings) {
       for (const r of el.rings) drawPath(bCtx, r, true);
